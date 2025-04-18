@@ -17,7 +17,7 @@ export default function VenueManagementLayout({
 
   const handleSignOut = () => {
     localStorage.removeItem('user');
-    router.push('/login');
+    router.push('/');
   };
 
   return (
