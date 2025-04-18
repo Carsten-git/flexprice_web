@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function VenueManagementHome() {
+export default function Specials() {
   const router = useRouter();
 
   useEffect(() => {
@@ -16,9 +16,9 @@ export default function VenueManagementHome() {
 
   return (
     <div className="bg-white rounded-xl shadow-sm border p-6">
-      <h2 className="text-xl font-semibold text-gray-900 mb-4">Welcome to Venue Management</h2>
+      <h2 className="text-xl font-semibold text-gray-900 mb-4">Specials</h2>
       <p className="text-gray-600">
-        Use the navigation menu above to manage your venue data, items, and specials.
+        This section will be used to manage special offers and promotions.
       </p>
     </div>
   );
