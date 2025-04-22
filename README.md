@@ -1,3 +1,54 @@
+# FlexPrice Web Application
+
+A web application for managing venue specials and pricing.
+
+## Setup Instructions
+
+1. Clone the repository
+```bash
+git clone <repository-url>
+cd flexprice-web
+```
+
+2. Install dependencies
+```bash
+npm install
+# or
+yarn install
+```
+
+3. Set up environment variables
+- Copy `.env.example` to `.env.local`
+- Fill in the required environment variables:
+  - `FIREBASE_PRIVATE_KEY`: Your Firebase Admin SDK private key
+  - `FIREBASE_CLIENT_EMAIL`: Your Firebase Admin SDK client email
+  - `NEXTAUTH_SECRET`: A random string for NextAuth.js
+  - `NEXTAUTH_URL`: The URL of your application (http://localhost:3000 for development)
+
+4. Set up Firebase
+- Place your Firebase Admin SDK credentials file in the project root
+- The file should be named `real-time-wtuahz-firebase-adminsdk-*.json`
+
+5. Run the development server
+```bash
+npm run dev
+# or
+yarn dev
+```
+
+## Security Notes
+
+- Never commit sensitive files like `.env.local` or Firebase credentials
+- Keep your Firebase credentials secure and never share them
+- The `.gitignore` file is configured to exclude sensitive files
+
+## Project Structure
+
+- `/src/app`: Next.js app router pages
+- `/src/pages/api`: API routes
+- `/src/lib`: Utility functions and configurations
+- `/db`: SQLite database files
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
