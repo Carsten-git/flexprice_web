@@ -90,6 +90,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     special_id INTEGER NOT NULL,
     item_id INTEGER NOT NULL,
+    special_price REAL DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (special_id) REFERENCES specials(id) ON DELETE CASCADE,
     FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
@@ -133,5 +134,8 @@ addColumnIfNotExists('items', 'description', 'TEXT DEFAULT ""');
 addColumnIfNotExists('items', 'image_url', 'TEXT DEFAULT ""');
 addColumnIfNotExists('items', 'category', 'TEXT DEFAULT ""');
 addColumnIfNotExists('items', 'is_available', 'BOOLEAN DEFAULT 1');
+
+// Add new special_items columns if they don't exist
+addColumnIfNotExists('special_items', 'special_price', 'REAL DEFAULT NULL');
 
 module.exports = db; 

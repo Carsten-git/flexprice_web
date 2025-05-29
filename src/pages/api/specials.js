@@ -15,7 +15,11 @@ export default function handler(req, res) {
         if (venue_id) {
           // Get specials by venue ID
           specials = db.prepare(`
-            SELECT s.*, GROUP_CONCAT(i.name) as item_names, GROUP_CONCAT(i.id) as item_ids
+            SELECT s.*, 
+                   GROUP_CONCAT(i.name) as item_names, 
+                   GROUP_CONCAT(i.id) as item_ids,
+                   GROUP_CONCAT(i.price) as original_prices,
+                   GROUP_CONCAT(si.special_price) as special_prices
             FROM specials s
             LEFT JOIN special_items si ON s.id = si.special_id
             LEFT JOIN items i ON si.item_id = i.id
@@ -26,7 +30,11 @@ export default function handler(req, res) {
         } else {
           // Get specials by venue name
           specials = db.prepare(`
-            SELECT s.*, v.name as venue_name, GROUP_CONCAT(i.name) as item_names, GROUP_CONCAT(i.id) as item_ids
+            SELECT s.*, v.name as venue_name, 
+                   GROUP_CONCAT(i.name) as item_names, 
+                   GROUP_CONCAT(i.id) as item_ids,
+                   GROUP_CONCAT(i.price) as original_prices,
+                   GROUP_CONCAT(si.special_price) as special_prices
             FROM specials s
             JOIN venues v ON s.venue_id = v.id
             LEFT JOIN special_items si ON s.id = si.special_id
@@ -49,6 +57,8 @@ export default function handler(req, res) {
           venue_id: special.venue_id,
           item_names: special.item_names ? special.item_names.split(',') : [],
           item_ids: special.item_ids ? special.item_ids.split(',').map(id => parseInt(id)) : [],
+          original_prices: special.original_prices ? special.original_prices.split(',').map(price => parseFloat(price)) : [],
+          special_prices: special.special_prices ? special.special_prices.split(',').map(price => price === 'null' ? null : parseFloat(price)) : [],
           created_at: special.created_at
         }));
 
@@ -69,7 +79,7 @@ export default function handler(req, res) {
         end_time, 
         venue_name: postVenueName,
         venue_id: postVenueId,
-        item_ids = [] 
+        special_items = [] 
       } = req.body;
 
       if (!special_name || !description || !day || !start_time || !end_time) {
@@ -80,7 +90,7 @@ export default function handler(req, res) {
         return res.status(400).json({ error: 'Venue ID or venue name is required' });
       }
 
-      if (!item_ids || item_ids.length === 0) {
+      if (!special_items || special_items.length === 0) {
         return res.status(400).json({ error: 'At least one menu item must be selected for this special' });
       }
 
@@ -107,14 +117,14 @@ export default function handler(req, res) {
           const result = insertSpecial.run(finalVenueId, special_name, description, day, start_time, end_time);
           const specialId = result.lastInsertRowid;
 
-          // Insert the special-item associations
+          // Insert the special-item associations with special prices
           const insertSpecialItem = db.prepare(`
-            INSERT INTO special_items (special_id, item_id)
-            VALUES (?, ?)
+            INSERT INTO special_items (special_id, item_id, special_price)
+            VALUES (?, ?, ?)
           `);
 
-          for (const itemId of item_ids) {
-            insertSpecialItem.run(specialId, itemId);
+          for (const specialItem of special_items) {
+            insertSpecialItem.run(specialId, specialItem.item_id, specialItem.special_price);
           }
 
           return specialId;
@@ -124,7 +134,11 @@ export default function handler(req, res) {
 
         // Get the created special with item information
         const createdSpecial = db.prepare(`
-          SELECT s.*, GROUP_CONCAT(i.name) as item_names, GROUP_CONCAT(i.id) as item_ids
+          SELECT s.*, 
+                 GROUP_CONCAT(i.name) as item_names, 
+                 GROUP_CONCAT(i.id) as item_ids,
+                 GROUP_CONCAT(i.price) as original_prices,
+                 GROUP_CONCAT(si.special_price) as special_prices
           FROM specials s
           LEFT JOIN special_items si ON s.id = si.special_id
           LEFT JOIN items i ON si.item_id = i.id
@@ -142,6 +156,8 @@ export default function handler(req, res) {
           venue_id: createdSpecial.venue_id,
           item_names: createdSpecial.item_names ? createdSpecial.item_names.split(',') : [],
           item_ids: createdSpecial.item_ids ? createdSpecial.item_ids.split(',').map(id => parseInt(id)) : [],
+          original_prices: createdSpecial.original_prices ? createdSpecial.original_prices.split(',').map(price => parseFloat(price)) : [],
+          special_prices: createdSpecial.special_prices ? createdSpecial.special_prices.split(',').map(price => price === 'null' ? null : parseFloat(price)) : [],
           created_at: createdSpecial.created_at
         };
 

@@ -21,6 +21,8 @@ interface Special {
   venue_id: number;
   item_names: string[];
   item_ids: number[];
+  original_prices: number[];
+  special_prices: (number | null)[];
   created_at: string;
   duration?: number;
   radius?: number;
@@ -85,7 +87,7 @@ export default function Specials() {
     end_time: string;
     venue_name: string;
     venue_id: number;
-    item_ids: number[];
+    special_items: { item_id: number; special_price: number | null }[];
     duration: number;
     radius: number;
     budget: number;
@@ -106,7 +108,7 @@ export default function Specials() {
           start_time: specialData.start_time,
           end_time: specialData.end_time,
           venue_id: specialData.venue_id,
-          item_ids: specialData.item_ids,
+          special_items: specialData.special_items,
         }),
       });
 
@@ -234,16 +236,41 @@ export default function Specials() {
             {/* Associated Menu Items */}
             {special.item_names && special.item_names.length > 0 && (
               <div className="mb-4">
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Applies to:</h4>
-                <div className="flex flex-wrap gap-1">
-                  {special.item_names.map((itemName, index) => (
-                    <span
-                      key={index}
-                      className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800"
-                    >
-                      {itemName}
-                    </span>
-                  ))}
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Special Applies to:</h4>
+                <div className="space-y-2">
+                  {special.item_names.map((itemName, index) => {
+                    const originalPrice = special.original_prices[index];
+                    const specialPrice = special.special_prices[index];
+                    const hasDiscount = specialPrice && specialPrice < originalPrice;
+                    
+                    return (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-2 bg-green-50 border border-green-200 rounded"
+                      >
+                        <span className="text-sm font-medium text-green-800">{itemName}</span>
+                        <div className="flex items-center gap-2">
+                          {hasDiscount ? (
+                            <>
+                              <span className="text-lg font-bold text-green-600">
+                                ${specialPrice.toFixed(2)}
+                              </span>
+                              <span className="text-sm text-gray-500 line-through">
+                                ${originalPrice.toFixed(2)}
+                              </span>
+                              <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded">
+                                {(((originalPrice - specialPrice) / originalPrice) * 100).toFixed(0)}% off
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-sm text-gray-600">
+                              ${originalPrice.toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

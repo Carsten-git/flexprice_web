@@ -28,7 +28,7 @@ interface AddSpecialModalProps {
     end_time: string;
     venue_name: string;
     venue_id: number;
-    item_ids: number[];
+    special_items: { item_id: number; special_price: number | null }[];
     duration: number;
     radius: number;
     budget: number;
@@ -55,11 +55,11 @@ export default function AddSpecialModal({ isOpen, onClose, onSave, venueName, ve
     budget: 25, // in dollars
     venue_name: venueName,
     venue_id: venueId,
-    item_ids: [] as number[]
+    special_items: [] as { item_id: number; special_price: number | null }[]
   });
 
   const [items, setItems] = useState<Item[]>([]);
-  const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
+  const [selectedItems, setSelectedItems] = useState<Map<number, { item_id: number; special_price: number | null }>>(new Map());
   const [estimatedImpressions, setEstimatedImpressions] = useState(0);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [error, setError] = useState('');
@@ -77,9 +77,9 @@ export default function AddSpecialModal({ isOpen, onClose, onSave, venueName, ve
         budget: 25,
         venue_name: venueName,
         venue_id: venueId,
-        item_ids: []
+        special_items: []
       });
-      setSelectedItems(new Set());
+      setSelectedItems(new Map());
       setError('');
       loadItems();
     }
@@ -122,14 +122,23 @@ export default function AddSpecialModal({ isOpen, onClose, onSave, venueName, ve
   };
 
   const handleItemToggle = (itemId: number) => {
-    const newSelectedItems = new Set(selectedItems);
+    const newSelectedItems = new Map(selectedItems);
     if (newSelectedItems.has(itemId)) {
       newSelectedItems.delete(itemId);
     } else {
-      newSelectedItems.add(itemId);
+      newSelectedItems.set(itemId, { item_id: itemId, special_price: null });
     }
     setSelectedItems(newSelectedItems);
-    setFormData({ ...formData, item_ids: Array.from(newSelectedItems) });
+    setFormData({ ...formData, special_items: Array.from(newSelectedItems.values()) });
+  };
+
+  const handleSpecialPriceChange = (itemId: number, specialPrice: number | null) => {
+    const newSelectedItems = new Map(selectedItems);
+    if (newSelectedItems.has(itemId)) {
+      newSelectedItems.set(itemId, { item_id: itemId, special_price: specialPrice });
+      setSelectedItems(newSelectedItems);
+      setFormData({ ...formData, special_items: Array.from(newSelectedItems.values()) });
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -150,7 +159,7 @@ export default function AddSpecialModal({ isOpen, onClose, onSave, venueName, ve
       end_time: endTime,
       venue_name: formData.venue_name,
       venue_id: formData.venue_id,
-      item_ids: Array.from(selectedItems),
+      special_items: Array.from(selectedItems.values()),
       duration: formData.duration,
       radius: formData.radius,
       budget: formData.budget
@@ -250,46 +259,87 @@ export default function AddSpecialModal({ isOpen, onClose, onSave, venueName, ve
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-4">
-                  {items.map((item) => (
-                    <div
-                      key={item.id}
-                      onClick={() => handleItemToggle(item.id)}
-                      className={`cursor-pointer p-3 rounded-lg border-2 transition-all ${
-                        selectedItems.has(item.id)
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-gray-900">{item.name}</h4>
-                          <p className="text-sm text-gray-600">${item.price.toFixed(2)}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                              {item.type}
-                            </span>
-                            {item.category && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                                {item.category}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-80 overflow-y-auto border border-gray-200 rounded-lg p-4">
+                  {items.map((item) => {
+                    const isSelected = selectedItems.has(item.id);
+                    const selectedItem = selectedItems.get(item.id);
+                    
+                    return (
+                      <div
+                        key={item.id}
+                        className={`p-3 rounded-lg border-2 transition-all ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div 
+                          onClick={() => handleItemToggle(item.id)}
+                          className="cursor-pointer flex items-start justify-between mb-3"
+                        >
+                          <div className="flex-1">
+                            <h4 className="font-medium text-gray-900">{item.name}</h4>
+                            <p className="text-sm text-gray-600">Original: ${item.price.toFixed(2)}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                {item.type}
                               </span>
+                              {item.category && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                  {item.category}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                            isSelected
+                              ? 'border-blue-500 bg-blue-500'
+                              : 'border-gray-300'
+                          }`}>
+                            {isSelected && (
+                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
                             )}
                           </div>
                         </div>
-                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                          selectedItems.has(item.id)
-                            ? 'border-blue-500 bg-blue-500'
-                            : 'border-gray-300'
-                        }`}>
-                          {selectedItems.has(item.id) && (
-                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                          )}
-                        </div>
+                        
+                        {/* Special Price Input */}
+                        {isSelected && (
+                          <div className="mt-3 pt-3 border-t border-blue-200">
+                            <label className="block text-xs font-medium text-gray-700 mb-2">
+                              Special Price (leave empty to use original price)
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-500">$</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder={item.price.toFixed(2)}
+                                value={selectedItem?.special_price || ''}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  handleSpecialPriceChange(
+                                    item.id, 
+                                    value ? parseFloat(value) : null
+                                  );
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            </div>
+                            {selectedItem?.special_price && (
+                              <p className="text-xs text-green-600 mt-1">
+                                Discount: ${(item.price - selectedItem.special_price).toFixed(2)} 
+                                ({(((item.price - selectedItem.special_price) / item.price) * 100).toFixed(0)}% off)
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 
                 {selectedItems.size > 0 && (
@@ -297,6 +347,23 @@ export default function AddSpecialModal({ isOpen, onClose, onSave, venueName, ve
                     <p className="text-sm text-blue-700">
                       <strong>{selectedItems.size}</strong> item{selectedItems.size !== 1 ? 's' : ''} selected for this special
                     </p>
+                    <div className="mt-2 text-xs text-blue-600">
+                      {Array.from(selectedItems.values()).map((selectedItem, index) => {
+                        const item = items.find(i => i.id === selectedItem.item_id);
+                        if (!item) return null;
+                        return (
+                          <div key={selectedItem.item_id} className="flex justify-between">
+                            <span>{item.name}:</span>
+                            <span>
+                              {selectedItem.special_price 
+                                ? `$${selectedItem.special_price.toFixed(2)} (was $${item.price.toFixed(2)})`
+                                : `$${item.price.toFixed(2)} (original)`
+                              }
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </>
