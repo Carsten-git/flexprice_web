@@ -17,6 +17,20 @@ db.exec(`
     user_id INTEGER NOT NULL,
     name TEXT NOT NULL,
     address TEXT NOT NULL,
+    suburb TEXT DEFAULT '',
+    state TEXT DEFAULT '',
+    postcode TEXT DEFAULT '',
+    phone TEXT DEFAULT '',
+    email TEXT DEFAULT '',
+    website TEXT DEFAULT '',
+    description TEXT DEFAULT '',
+    cuisine_type TEXT DEFAULT '',
+    price_range TEXT DEFAULT '',
+    opening_hours TEXT DEFAULT '{}',
+    features TEXT DEFAULT '[]',
+    image_url TEXT DEFAULT '',
+    capacity INTEGER DEFAULT 0,
+    established_year TEXT DEFAULT '',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id),
     UNIQUE(user_id)
@@ -72,5 +86,36 @@ db.exec(`
     UNIQUE(special_id)
   )
 `);
+
+// Migration: Add new columns to venues table if they don't exist
+const addColumnIfNotExists = (tableName, columnName, columnDefinition) => {
+  try {
+    const tableInfo = db.prepare(`PRAGMA table_info(${tableName})`).all();
+    const columnExists = tableInfo.some(column => column.name === columnName);
+    
+    if (!columnExists) {
+      db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
+      console.log(`Added column ${columnName} to ${tableName}`);
+    }
+  } catch (error) {
+    console.log(`Column ${columnName} might already exist in ${tableName}`);
+  }
+};
+
+// Add new venue columns if they don't exist
+addColumnIfNotExists('venues', 'suburb', 'TEXT DEFAULT ""');
+addColumnIfNotExists('venues', 'state', 'TEXT DEFAULT ""');
+addColumnIfNotExists('venues', 'postcode', 'TEXT DEFAULT ""');
+addColumnIfNotExists('venues', 'phone', 'TEXT DEFAULT ""');
+addColumnIfNotExists('venues', 'email', 'TEXT DEFAULT ""');
+addColumnIfNotExists('venues', 'website', 'TEXT DEFAULT ""');
+addColumnIfNotExists('venues', 'description', 'TEXT DEFAULT ""');
+addColumnIfNotExists('venues', 'cuisine_type', 'TEXT DEFAULT ""');
+addColumnIfNotExists('venues', 'price_range', 'TEXT DEFAULT ""');
+addColumnIfNotExists('venues', 'opening_hours', 'TEXT DEFAULT "{}"');
+addColumnIfNotExists('venues', 'features', 'TEXT DEFAULT "[]"');
+addColumnIfNotExists('venues', 'image_url', 'TEXT DEFAULT ""');
+addColumnIfNotExists('venues', 'capacity', 'INTEGER DEFAULT 0');
+addColumnIfNotExists('venues', 'established_year', 'TEXT DEFAULT ""');
 
 module.exports = db; 
