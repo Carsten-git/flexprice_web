@@ -43,6 +43,33 @@ db.exec(`
     end_time TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (venue_id) REFERENCES venues(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS special_analytics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    special_id TEXT NOT NULL,
+    venue_name TEXT NOT NULL,
+    special_name TEXT NOT NULL,
+    date DATE NOT NULL,
+    views INTEGER DEFAULT 0,
+    clicks INTEGER DEFAULT 0,
+    conversions INTEGER DEFAULT 0,
+    revenue REAL DEFAULT 0.0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS special_performance_summary (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    special_id TEXT NOT NULL,
+    venue_name TEXT NOT NULL,
+    special_name TEXT NOT NULL,
+    total_views INTEGER DEFAULT 0,
+    total_clicks INTEGER DEFAULT 0,
+    total_conversions INTEGER DEFAULT 0,
+    total_revenue REAL DEFAULT 0.0,
+    avg_conversion_rate REAL DEFAULT 0.0,
+    last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(special_id)
   )
 `);
 
