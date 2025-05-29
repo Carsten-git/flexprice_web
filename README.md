@@ -24,12 +24,20 @@ yarn install
   - `FIREBASE_CLIENT_EMAIL`: Your Firebase Admin SDK client email
   - `NEXTAUTH_SECRET`: A random string for NextAuth.js
   - `NEXTAUTH_URL`: The URL of your application (http://localhost:3000 for development)
+  - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`: Your Google Maps JavaScript API key
 
 4. Set up Firebase
 - Place your Firebase Admin SDK credentials file in the project root
 - The file should be named `real-time-wtuahz-firebase-adminsdk-*.json`
 
-5. Run the development server
+5. Set up Google Maps API
+- Go to the [Google Cloud Console](https://console.cloud.google.com/)
+- Create a new project or select an existing one
+- Enable the "Maps JavaScript API"
+- Create an API key and restrict it to your domain
+- Add the API key to your `.env.local` file as `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`
+
+6. Run the development server
 ```bash
 npm run dev
 # or
@@ -40,6 +48,7 @@ yarn dev
 
 - Never commit sensitive files like `.env.local` or Firebase credentials
 - Keep your Firebase credentials secure and never share them
+- Restrict your Google Maps API key to your domain in production
 - The `.gitignore` file is configured to exclude sensitive files
 
 ## Project Structure
