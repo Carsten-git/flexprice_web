@@ -84,6 +84,16 @@ db.exec(`
     avg_conversion_rate REAL DEFAULT 0.0,
     last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(special_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS special_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    special_id INTEGER NOT NULL,
+    item_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (special_id) REFERENCES specials(id) ON DELETE CASCADE,
+    FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
+    UNIQUE(special_id, item_id)
   )
 `);
 

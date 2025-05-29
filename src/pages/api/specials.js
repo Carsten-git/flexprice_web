@@ -1,75 +1,181 @@
-import { firestore } from '../../lib/firebase';
-import dayjs from 'dayjs';
-import timezone from 'dayjs/plugin/timezone';
-import utc from 'dayjs/plugin/utc';
+import db from '../../db/db';
 
-dayjs.extend(utc);
-dayjs.extend(timezone);
-
-export default async function handler(req, res) {
-  if (req.method === 'GET') {
-    try {
-      const { venue_name } = req.query;
+export default function handler(req, res) {
+  switch (req.method) {
+    case 'GET': {
+      // Get all specials for a specific venue with associated items
+      const { venue_name, venue_id } = req.query;
       
-      if (!venue_name) {
-        return res.status(400).json({ error: 'Venue name is required' });
+      if (!venue_name && !venue_id) {
+        return res.status(400).json({ error: 'Venue name or venue ID is required' });
       }
 
-      const snapshot = await firestore.collection('advert_list')
-        .where('VenueName', '==', venue_name)
-        .get();
-      
-      const specials = [];
-      
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        specials.push({
-          id: doc.id,
-          special_name: data.SpecialName,
-          description: data.Details,
-          day: data.Day,
-          start_time: data.From,
-          end_time: data.To,
-          venue_name: data.VenueName
+      try {
+        let specials;
+        if (venue_id) {
+          // Get specials by venue ID
+          specials = db.prepare(`
+            SELECT s.*, GROUP_CONCAT(i.name) as item_names, GROUP_CONCAT(i.id) as item_ids
+            FROM specials s
+            LEFT JOIN special_items si ON s.id = si.special_id
+            LEFT JOIN items i ON si.item_id = i.id
+            WHERE s.venue_id = ?
+            GROUP BY s.id
+            ORDER BY s.created_at DESC
+          `).all(venue_id);
+        } else {
+          // Get specials by venue name
+          specials = db.prepare(`
+            SELECT s.*, v.name as venue_name, GROUP_CONCAT(i.name) as item_names, GROUP_CONCAT(i.id) as item_ids
+            FROM specials s
+            JOIN venues v ON s.venue_id = v.id
+            LEFT JOIN special_items si ON s.id = si.special_id
+            LEFT JOIN items i ON si.item_id = i.id
+            WHERE v.name = ?
+            GROUP BY s.id
+            ORDER BY s.created_at DESC
+          `).all(venue_name);
+        }
+
+        // Format the response to include item arrays
+        const formattedSpecials = specials.map(special => ({
+          id: special.id,
+          special_name: special.special_name,
+          description: special.description,
+          day: special.day,
+          start_time: special.start_time,
+          end_time: special.end_time,
+          venue_name: special.venue_name || venue_name,
+          venue_id: special.venue_id,
+          item_names: special.item_names ? special.item_names.split(',') : [],
+          item_ids: special.item_ids ? special.item_ids.split(',').map(id => parseInt(id)) : [],
+          created_at: special.created_at
+        }));
+
+        return res.status(200).json(formattedSpecials);
+      } catch (error) {
+        console.error('Error fetching specials:', error);
+        return res.status(500).json({ error: 'Error fetching specials' });
+      }
+    }
+
+    case 'POST': {
+      // Create a new special with associated items
+      const { 
+        special_name, 
+        description, 
+        day, 
+        start_time, 
+        end_time, 
+        venue_name: postVenueName,
+        venue_id: postVenueId,
+        item_ids = [] 
+      } = req.body;
+
+      if (!special_name || !description || !day || !start_time || !end_time) {
+        return res.status(400).json({ error: 'Special name, description, day, start time, and end time are required' });
+      }
+
+      if (!postVenueId && !postVenueName) {
+        return res.status(400).json({ error: 'Venue ID or venue name is required' });
+      }
+
+      if (!item_ids || item_ids.length === 0) {
+        return res.status(400).json({ error: 'At least one menu item must be selected for this special' });
+      }
+
+      try {
+        let finalVenueId = postVenueId;
+
+        // If venue_name is provided but not venue_id, get the venue_id
+        if (!postVenueId && postVenueName) {
+          const venue = db.prepare('SELECT id FROM venues WHERE name = ?').get(postVenueName);
+          if (!venue) {
+            return res.status(404).json({ error: 'Venue not found' });
+          }
+          finalVenueId = venue.id;
+        }
+
+        // Begin transaction
+        const transaction = db.transaction(() => {
+          // Insert the special
+          const insertSpecial = db.prepare(`
+            INSERT INTO specials (venue_id, special_name, description, day, start_time, end_time)
+            VALUES (?, ?, ?, ?, ?, ?)
+          `);
+          
+          const result = insertSpecial.run(finalVenueId, special_name, description, day, start_time, end_time);
+          const specialId = result.lastInsertRowid;
+
+          // Insert the special-item associations
+          const insertSpecialItem = db.prepare(`
+            INSERT INTO special_items (special_id, item_id)
+            VALUES (?, ?)
+          `);
+
+          for (const itemId of item_ids) {
+            insertSpecialItem.run(specialId, itemId);
+          }
+
+          return specialId;
         });
-      });
 
-      return res.status(200).json(specials);
-    } catch (error) {
-      console.error('Error fetching specials:', error);
-      return res.status(500).json({ error: 'Error fetching specials' });
+        const specialId = transaction();
+
+        // Get the created special with item information
+        const createdSpecial = db.prepare(`
+          SELECT s.*, GROUP_CONCAT(i.name) as item_names, GROUP_CONCAT(i.id) as item_ids
+          FROM specials s
+          LEFT JOIN special_items si ON s.id = si.special_id
+          LEFT JOIN items i ON si.item_id = i.id
+          WHERE s.id = ?
+          GROUP BY s.id
+        `).get(specialId);
+
+        const responseData = {
+          id: createdSpecial.id,
+          special_name: createdSpecial.special_name,
+          description: createdSpecial.description,
+          day: createdSpecial.day,
+          start_time: createdSpecial.start_time,
+          end_time: createdSpecial.end_time,
+          venue_id: createdSpecial.venue_id,
+          item_names: createdSpecial.item_names ? createdSpecial.item_names.split(',') : [],
+          item_ids: createdSpecial.item_ids ? createdSpecial.item_ids.split(',').map(id => parseInt(id)) : [],
+          created_at: createdSpecial.created_at
+        };
+
+        return res.status(201).json(responseData);
+      } catch (error) {
+        console.error('Error creating special:', error);
+        return res.status(500).json({ error: 'Error creating special' });
+      }
     }
+
+    case 'DELETE': {
+      // Delete a special and its associations
+      const { id: deleteId } = req.body;
+      
+      if (!deleteId) {
+        return res.status(400).json({ error: 'Special ID is required' });
+      }
+
+      try {
+        // The special_items will be deleted automatically due to CASCADE
+        const deleteResult = db.prepare('DELETE FROM specials WHERE id = ?').run(deleteId);
+        
+        if (deleteResult.changes === 0) {
+          return res.status(404).json({ error: 'Special not found' });
+        }
+
+        return res.status(200).json({ message: 'Special deleted successfully' });
+      } catch (error) {
+        console.error('Error deleting special:', error);
+        return res.status(500).json({ error: 'Error deleting special' });
+      }
+    }
+
+    default:
+      return res.status(405).json({ error: 'Method not allowed' });
   }
-
-  if (req.method === 'POST') {
-    const { special_name, description, day, start_time, end_time, venue_name } = req.body;
-
-    if (!special_name || !description || !day || !start_time || !end_time || !venue_name) {
-      return res.status(400).json({ error: 'All fields are required' });
-    }
-
-    try {
-      // Save to Firebase with the correct field names
-      const firebaseData = {
-        Day: day,
-        Details: description,
-        From: start_time,
-        SpecialName: special_name,
-        To: end_time,
-        VenueName: venue_name
-      };
-
-      const docRef = await firestore.collection('advert_list').add(firebaseData);
-
-      return res.status(201).json({ 
-        id: docRef.id,
-        ...firebaseData
-      });
-    } catch (error) {
-      console.error('Error creating special:', error);
-      return res.status(500).json({ error: 'Error creating special' });
-    }
-  }
-
-  return res.status(405).json({ error: 'Method not allowed' });
 } 

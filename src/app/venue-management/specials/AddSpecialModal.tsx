@@ -7,6 +7,16 @@ import GoogleMap from './components/GoogleMap';
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+interface Item {
+  id: number;
+  name: string;
+  type: string;
+  price: number;
+  description: string;
+  category: string;
+  is_available: boolean;
+}
+
 interface AddSpecialModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -17,11 +27,14 @@ interface AddSpecialModalProps {
     start_time: string;
     end_time: string;
     venue_name: string;
+    venue_id: number;
+    item_ids: number[];
     duration: number;
     radius: number;
     budget: number;
   }) => void;
   venueName: string;
+  venueId: number;
 }
 
 // Mock venue location in Melbourne CBD
@@ -31,7 +44,7 @@ const VENUE_LOCATION = {
   address: "123 Collins Street, Melbourne VIC 3000"
 };
 
-export default function AddSpecialModal({ isOpen, onClose, onSave, venueName }: AddSpecialModalProps) {
+export default function AddSpecialModal({ isOpen, onClose, onSave, venueName, venueId }: AddSpecialModalProps) {
   const [formData, setFormData] = useState({
     special_name: '',
     description: '',
@@ -40,13 +53,19 @@ export default function AddSpecialModal({ isOpen, onClose, onSave, venueName }: 
     duration: 30, // in minutes
     radius: 500, // in meters
     budget: 25, // in dollars
-    venue_name: venueName
+    venue_name: venueName,
+    venue_id: venueId,
+    item_ids: [] as number[]
   });
 
+  const [items, setItems] = useState<Item[]>([]);
+  const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
   const [estimatedImpressions, setEstimatedImpressions] = useState(0);
+  const [isLoadingItems, setIsLoadingItems] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && venueId) {
       // Reset form when modal opens
       setFormData({
         special_name: '',
@@ -56,10 +75,15 @@ export default function AddSpecialModal({ isOpen, onClose, onSave, venueName }: 
         duration: 30,
         radius: 500,
         budget: 25,
-        venue_name: venueName
+        venue_name: venueName,
+        venue_id: venueId,
+        item_ids: []
       });
+      setSelectedItems(new Set());
+      setError('');
+      loadItems();
     }
-  }, [isOpen, venueName]);
+  }, [isOpen, venueName, venueId]);
 
   // Calculate estimated impressions based on budget, radius, and duration
   useEffect(() => {
@@ -73,6 +97,23 @@ export default function AddSpecialModal({ isOpen, onClose, onSave, venueName }: 
     setEstimatedImpressions(estimated);
   }, [formData.budget, formData.radius, formData.duration]);
 
+  const loadItems = async () => {
+    setIsLoadingItems(true);
+    try {
+      const response = await fetch(`/api/items?venue_id=${venueId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setItems(data.filter((item: Item) => item.is_available));
+      } else {
+        setError('Error loading menu items');
+      }
+    } catch (err) {
+      setError('Error loading menu items');
+    } finally {
+      setIsLoadingItems(false);
+    }
+  };
+
   const calculateEndTime = (startTime: string, duration: number) => {
     if (!startTime) return '';
     const start = dayjs(`2000-01-01 ${startTime}`);
@@ -80,8 +121,25 @@ export default function AddSpecialModal({ isOpen, onClose, onSave, venueName }: 
     return end.format('HH:mm');
   };
 
+  const handleItemToggle = (itemId: number) => {
+    const newSelectedItems = new Set(selectedItems);
+    if (newSelectedItems.has(itemId)) {
+      newSelectedItems.delete(itemId);
+    } else {
+      newSelectedItems.add(itemId);
+    }
+    setSelectedItems(newSelectedItems);
+    setFormData({ ...formData, item_ids: Array.from(newSelectedItems) });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (selectedItems.size === 0) {
+      setError('Please select at least one menu item for this special');
+      return;
+    }
+
     const endTime = calculateEndTime(formData.start_time, formData.duration);
     
     onSave({
@@ -91,6 +149,8 @@ export default function AddSpecialModal({ isOpen, onClose, onSave, venueName }: 
       start_time: formData.start_time,
       end_time: endTime,
       venue_name: formData.venue_name,
+      venue_id: formData.venue_id,
+      item_ids: Array.from(selectedItems),
       duration: formData.duration,
       radius: formData.radius,
       budget: formData.budget
@@ -103,6 +163,17 @@ export default function AddSpecialModal({ isOpen, onClose, onSave, venueName }: 
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         <h2 className="text-2xl font-semibold mb-6">Create New Special</h2>
+        
+        {error && (
+          <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex">
+              <svg className="h-5 w-5 text-red-400 mt-0.5 mr-3" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" />
+              </svg>
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          </div>
+        )}
         
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Information */}
@@ -159,11 +230,84 @@ export default function AddSpecialModal({ isOpen, onClose, onSave, venueName }: 
             />
           </div>
 
+          {/* Menu Items Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Select Menu Items *
+              <span className="text-sm text-gray-500 font-normal"> (Choose which items this special applies to)</span>
+            </label>
+            
+            {isLoadingItems ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <span className="ml-3 text-gray-600">Loading menu items...</span>
+              </div>
+            ) : items.length === 0 ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <p className="text-yellow-700">
+                  No available menu items found. Please add some menu items first before creating specials.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-4">
+                  {items.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => handleItemToggle(item.id)}
+                      className={`cursor-pointer p-3 rounded-lg border-2 transition-all ${
+                        selectedItems.has(item.id)
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900">{item.name}</h4>
+                          <p className="text-sm text-gray-600">${item.price.toFixed(2)}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                              {item.type}
+                            </span>
+                            {item.category && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                {item.category}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                          selectedItems.has(item.id)
+                            ? 'border-blue-500 bg-blue-500'
+                            : 'border-gray-300'
+                        }`}>
+                          {selectedItems.has(item.id) && (
+                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {selectedItems.size > 0 && (
+                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-700">
+                      <strong>{selectedItems.size}</strong> item{selectedItems.size !== 1 ? 's' : ''} selected for this special
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
           {/* Duration Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-3">Duration</label>
             <div className="flex gap-3">
-              {[30, 60, 90].map((duration) => (
+              {[30, 60, 90, 120].map((duration) => (
                 <button
                   key={duration}
                   type="button"
@@ -326,7 +470,12 @@ export default function AddSpecialModal({ isOpen, onClose, onSave, venueName }: 
             </button>
             <button
               type="submit"
-              className="px-8 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium transition-colors shadow-md"
+              disabled={selectedItems.size === 0}
+              className={`px-8 py-3 rounded-lg font-medium transition-colors shadow-md ${
+                selectedItems.size === 0
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-blue-500 text-white hover:bg-blue-600'
+              }`}
             >
               Create Special
             </button>

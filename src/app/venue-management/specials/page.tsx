@@ -11,13 +11,17 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 interface Special {
-  id: string;
+  id: number;
   special_name: string;
   description: string;
   day: string;
   start_time: string;
   end_time: string;
   venue_name: string;
+  venue_id: number;
+  item_names: string[];
+  item_ids: number[];
+  created_at: string;
   duration?: number;
   radius?: number;
   budget?: number;
@@ -28,6 +32,7 @@ export default function Specials() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [specials, setSpecials] = useState<Special[]>([]);
   const [venueName, setVenueName] = useState('');
+  const [venueId, setVenueId] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -50,7 +55,8 @@ export default function Specials() {
         const venueData = await venueResponse.json();
         if (venueData) {
           setVenueName(venueData.name);
-          fetchSpecials(venueData.name);
+          setVenueId(venueData.id);
+          fetchSpecials(venueData.id);
         }
       }
     } catch (err) {
@@ -58,9 +64,9 @@ export default function Specials() {
     }
   };
 
-  const fetchSpecials = async (venueName: string) => {
+  const fetchSpecials = async (venueId: number) => {
     try {
-      const response = await fetch(`/api/specials?venue_name=${encodeURIComponent(venueName)}`);
+      const response = await fetch(`/api/specials?venue_id=${venueId}`);
       if (response.ok) {
         const data = await response.json();
         setSpecials(data);
@@ -78,6 +84,8 @@ export default function Specials() {
     start_time: string;
     end_time: string;
     venue_name: string;
+    venue_id: number;
+    item_ids: number[];
     duration: number;
     radius: number;
     budget: number;
@@ -97,14 +105,17 @@ export default function Specials() {
           day: specialData.day,
           start_time: specialData.start_time,
           end_time: specialData.end_time,
-          venue_name: venueName,
+          venue_id: specialData.venue_id,
+          item_ids: specialData.item_ids,
         }),
       });
 
       if (response.ok) {
         setSuccess('Special added successfully');
         setIsModalOpen(false);
-        fetchSpecials(venueName);
+        if (venueId) {
+          fetchSpecials(venueId);
+        }
       } else {
         const data = await response.json();
         setError(data.error || 'Error adding special');
@@ -112,6 +123,35 @@ export default function Specials() {
     } catch (error) {
       console.error('Error adding special:', error);
       setError('Error adding special');
+    }
+  };
+
+  const handleDeleteSpecial = async (specialId: number) => {
+    if (!window.confirm('Are you sure you want to delete this special?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/specials', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: specialId }),
+      });
+
+      if (response.ok) {
+        setSuccess('Special deleted successfully');
+        if (venueId) {
+          fetchSpecials(venueId);
+        }
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Error deleting special');
+      }
+    } catch (error) {
+      console.error('Error deleting special:', error);
+      setError('Error deleting special');
     }
   };
 
@@ -173,12 +213,40 @@ export default function Specials() {
           <div key={special.id} className="bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition-shadow">
             <div className="flex items-start justify-between mb-3">
               <h2 className="text-xl font-semibold text-gray-900">{special.special_name}</h2>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                {formatDuration(special.start_time, special.end_time)}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  {formatDuration(special.start_time, special.end_time)}
+                </span>
+                <button
+                  onClick={() => handleDeleteSpecial(special.id)}
+                  className="text-red-500 hover:text-red-700 transition-colors"
+                  title="Delete special"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
             </div>
             
             <p className="text-gray-600 mb-4 line-clamp-2">{special.description}</p>
+
+            {/* Associated Menu Items */}
+            {special.item_names && special.item_names.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Applies to:</h4>
+                <div className="flex flex-wrap gap-1">
+                  {special.item_names.map((itemName, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800"
+                    >
+                      {itemName}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             
             <div className="space-y-2">
               <div className="flex items-center text-sm text-gray-500">
@@ -228,12 +296,15 @@ export default function Specials() {
         </div>
       )}
 
-      <AddSpecialModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={handleAddSpecial}
-        venueName={venueName}
-      />
+      {venueId && (
+        <AddSpecialModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSave={handleAddSpecial}
+          venueName={venueName}
+          venueId={venueId}
+        />
+      )}
     </div>
   );
 } 
