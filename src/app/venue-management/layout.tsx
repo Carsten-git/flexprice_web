@@ -59,7 +59,7 @@ export default function VenueManagementLayout({
                       : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                   }`}
                 >
-                  Item Data
+                  Menu Management
                 </Link>
                 <Link
                   href="/venue-management/specials"

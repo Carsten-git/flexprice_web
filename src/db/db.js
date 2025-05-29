@@ -118,4 +118,10 @@ addColumnIfNotExists('venues', 'image_url', 'TEXT DEFAULT ""');
 addColumnIfNotExists('venues', 'capacity', 'INTEGER DEFAULT 0');
 addColumnIfNotExists('venues', 'established_year', 'TEXT DEFAULT ""');
 
+// Add new item columns if they don't exist
+addColumnIfNotExists('items', 'description', 'TEXT DEFAULT ""');
+addColumnIfNotExists('items', 'image_url', 'TEXT DEFAULT ""');
+addColumnIfNotExists('items', 'category', 'TEXT DEFAULT ""');
+addColumnIfNotExists('items', 'is_available', 'BOOLEAN DEFAULT 1');
+
 module.exports = db; 
