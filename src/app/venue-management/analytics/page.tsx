@@ -10,6 +10,7 @@ interface DailyData {
   clicks: number;
   conversions: number;
   revenue: number;
+  savings: number;
 }
 
 interface AnalyticsSummary {
@@ -17,8 +18,10 @@ interface AnalyticsSummary {
   total_clicks: number;
   total_conversions: number;
   total_revenue: number;
+  total_customer_savings: number;
   avg_conversion_rate: number;
   avg_click_rate: number;
+  avg_order_value: number;
 }
 
 interface SpecialAnalytics {
@@ -27,6 +30,11 @@ interface SpecialAnalytics {
   venue_name: string;
   day: string;
   time: string;
+  items: string[];
+  original_prices: number[];
+  special_prices: (number | null)[];
+  total_savings_per_order: number;
+  has_discounts: boolean;
   dailyData: DailyData[];
   summary: AnalyticsSummary;
 }
@@ -35,6 +43,7 @@ export default function Analytics() {
   const router = useRouter();
   const [analytics, setAnalytics] = useState<SpecialAnalytics[]>([]);
   const [venueName, setVenueName] = useState('');
+  const [venueId, setVenueId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('30');
@@ -58,7 +67,8 @@ export default function Analytics() {
         const venueData = await venueResponse.json();
         if (venueData) {
           setVenueName(venueData.name);
-          fetchAnalytics(venueData.name);
+          setVenueId(venueData.id);
+          fetchAnalytics(venueData.id);
         }
       }
     } catch (err) {
@@ -67,10 +77,10 @@ export default function Analytics() {
     }
   };
 
-  const fetchAnalytics = async (venueName: string) => {
+  const fetchAnalytics = async (venueId: number) => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/analytics?venue_name=${encodeURIComponent(venueName)}`);
+      const response = await fetch(`/api/analytics?venue_id=${venueId}`);
       if (response.ok) {
         const data = await response.json();
         setAnalytics(data);
@@ -92,8 +102,9 @@ export default function Analytics() {
         clicks: totals.clicks + special.summary.total_clicks,
         conversions: totals.conversions + special.summary.total_conversions,
         revenue: totals.revenue + special.summary.total_revenue,
+        savings: totals.savings + special.summary.total_customer_savings,
       }),
-      { views: 0, clicks: 0, conversions: 0, revenue: 0 }
+      { views: 0, clicks: 0, conversions: 0, revenue: 0, savings: 0 }
     );
   };
 
@@ -110,13 +121,15 @@ export default function Analytics() {
             views: 0,
             clicks: 0,
             conversions: 0,
-            revenue: 0
+            revenue: 0,
+            savings: 0
           };
         }
         dailyTotals[day.date].views += day.views;
         dailyTotals[day.date].clicks += day.clicks;
         dailyTotals[day.date].conversions += day.conversions;
         dailyTotals[day.date].revenue += day.revenue;
+        dailyTotals[day.date].savings += day.savings;
       });
     });
     
@@ -132,6 +145,23 @@ export default function Analytics() {
 
   const formatPercentage = (value: number) => {
     return `${value.toFixed(1)}%`;
+  };
+
+  const getSpecialPricingInfo = (special: SpecialAnalytics) => {
+    if (!special.has_discounts) return null;
+    
+    const discountedItems = special.items.map((item, index) => {
+      const originalPrice = special.original_prices[index];
+      const specialPrice = special.special_prices[index];
+      if (specialPrice && specialPrice < originalPrice) {
+        const savings = originalPrice - specialPrice;
+        const percentage = (savings / originalPrice) * 100;
+        return { item, originalPrice, specialPrice, savings, percentage };
+      }
+      return null;
+    }).filter((item): item is { item: string; originalPrice: number; specialPrice: number; savings: number; percentage: number } => item !== null);
+
+    return discountedItems;
   };
 
   if (loading) {
@@ -184,7 +214,7 @@ export default function Analytics() {
       </div>
 
       {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
         <div className="bg-white rounded-xl shadow-sm border p-6">
           <div className="flex items-center">
             <div className="flex-shrink-0">
@@ -249,6 +279,22 @@ export default function Analytics() {
             </div>
           </div>
         </div>
+
+        <div className="bg-white rounded-xl shadow-sm border p-6">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+              </div>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Customer Savings</p>
+              <p className="text-2xl font-semibold text-gray-900">{formatCurrency(totals.savings)}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Charts Section */}
@@ -278,7 +324,7 @@ export default function Analytics() {
       )}
 
       {/* Special Performance Table */}
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border overflow-hidden mb-8">
         <div className="px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Special Performance</h2>
         </div>
@@ -310,13 +356,31 @@ export default function Analytics() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Revenue
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Avg Order
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Customer Savings
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {analytics.map((special) => (
                 <tr key={special.special_id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{special.special_name}</div>
+                    <div className="flex items-center">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{special.special_name}</div>
+                        {special.has_discounts && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                            </svg>
+                            Discounted
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{special.day}</div>
@@ -340,12 +404,62 @@ export default function Analytics() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {formatCurrency(special.summary.total_revenue)}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {formatCurrency(special.summary.avg_order_value)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {special.has_discounts ? (
+                      <div>
+                        <div className="text-green-600 font-medium">{formatCurrency(special.summary.total_customer_savings)}</div>
+                        <div className="text-xs text-gray-500">{formatCurrency(special.total_savings_per_order)}/order</div>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">No discounts</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Special Pricing Details */}
+      {analytics.some(special => special.has_discounts) && (
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Special Pricing Details</h2>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {analytics.filter(special => special.has_discounts).map((special) => {
+                const pricingInfo = getSpecialPricingInfo(special);
+                return (
+                  <div key={special.special_id} className="border border-gray-200 rounded-lg p-4">
+                    <h3 className="font-medium text-gray-900 mb-3">{special.special_name}</h3>
+                    <div className="space-y-2">
+                      {pricingInfo?.map((item, index) => (
+                        <div key={index} className="flex justify-between items-center text-sm">
+                          <span className="text-gray-600">{item.item}</span>
+                          <div className="text-right">
+                            <div className="flex items-center gap-2">
+                              <span className="text-green-600 font-medium">${item.specialPrice.toFixed(2)}</span>
+                              <span className="text-gray-400 line-through">${item.originalPrice.toFixed(2)}</span>
+                            </div>
+                            <div className="text-xs text-red-600">
+                              {item.percentage.toFixed(0)}% off
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {analytics.length === 0 && (
         <div className="text-center py-12">
